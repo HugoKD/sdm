@@ -1,0 +1,8 @@
+blobfile
+mpi4py
+Pillow
+numpy
+torch==1.13
+torchvision
+seaborn
+tqdm
