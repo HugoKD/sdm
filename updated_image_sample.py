@@ -34,8 +34,7 @@ def main():
     model.load_state_dict(
         dist_util.load_state_dict(args.model_path, map_location="cpu")
     )
-    device = th.device('cuda' if th.cuda.is_available() else 'cpu')
-    model.to(device)
+    model.to(dist_util.dev())
 
     logger.log("creating data loader...")
     data = load_data(
@@ -64,17 +63,25 @@ def main():
     logger.log("sampling...")
     all_samples = []
     for i, (batch, cond) in enumerate(data):
-        image = ((batch + 1.0) / 2.0).to(device)  # Move image tensor to the correct device
-        label = (cond['label_ori'].float() / 255.0).to(device)  # Move label tensor to the correct device
+        image = ((batch + 1.0) / 2.0).cuda()
+        label = (cond['label_ori'].float() / 255.0).cuda()
         model_kwargs = preprocess_input(cond, num_classes=args.num_classes)
-        model_kwargs = {k: v.to(device) for k, v in model_kwargs.items()}  # Move model_kwargs to the correct device
 
         # set hyperparameter
         model_kwargs['s'] = args.s
 
-        sample_fn = (
-            diffusion.p_sample_loop if not args.use_ddim else diffusion.ddim_sample_loop
-        )
+        #sample_fn = (
+        #    diffusion.p_sample_loop if args.use_ddim == '' elif diffusion.ddim_sample_loop == 'DDIM' else diffusion.ddpm_sample_loop == 'DDPM'
+        #) ## modif 
+        if args.use_ddim == '':
+            sample_fn = diffusion.p_sample_loop
+        elif args.use_ddim == 'DDIM':
+            sample_fn = diffusion.ddim_sample_loop
+        elif args.use_ddim == 'DDPM':
+            sample_fn = diffusion.ddpm_sample_loop
+        else:
+            raise ValueError("Invalid value for args.use_ddim")
+            
         sample = sample_fn(
             model,
             (args.batch_size, 3, image.shape[2], image.shape[3]),
@@ -93,7 +100,7 @@ def main():
             tv.utils.save_image(sample[j], os.path.join(sample_path, cond['path'][j].split('/')[-1].split('.')[0] + '.png'))
             tv.utils.save_image(label[j], os.path.join(label_path, cond['path'][j].split('/')[-1].split('.')[0] + '.png'))
 
-        logger.log(f"created {len(all_samples) * args.batch_size} samples")
+        logger.log("created {} samples".format(len(all_samples) * args.batch_size))
 
         if len(all_samples) * args.batch_size > args.num_samples:
             break
@@ -110,11 +117,11 @@ def preprocess_input(data, num_classes):
     label_map = data['label']
     bs, _, h, w = label_map.size()
     input_label = th.FloatTensor(bs, num_classes, h, w).zero_()
-    input_semantics = input_label.scatter_(1, label_map, 1.0).to(label_map.device)  # Ensure the one-hot tensor is on the same device as label_map
+    input_semantics = input_label.scatter_(1, label_map, 1.0)
 
     # concatenate instance map if it exists
     if 'instance' in data:
-        inst_map = data['instance'].to(label_map.device)  # Ensure instance map is on the same device
+        inst_map = data['instance']
         instance_edge_map = get_edges(inst_map)
         input_semantics = th.cat((input_semantics, instance_edge_map), dim=1)
 
@@ -122,7 +129,7 @@ def preprocess_input(data, num_classes):
 
 
 def get_edges(t):
-    edge = th.ByteTensor(t.size()).zero_().to(t.device)  # Ensure edge tensor is on the same device as input tensor
+    edge = th.ByteTensor(t.size()).zero_()
     edge[:, :, :, 1:] = edge[:, :, :, 1:] | (t[:, :, :, 1:] != t[:, :, :, :-1])
     edge[:, :, :, :-1] = edge[:, :, :, :-1] | (t[:, :, :, 1:] != t[:, :, :, :-1])
     edge[:, :, 1:, :] = edge[:, :, 1:, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])
@@ -137,7 +144,7 @@ def create_argparser():
         clip_denoised=True,
         num_samples=10000,
         batch_size=1,
-        use_ddim=False,
+        use_ddim='DDIM', ##hugo : i change it to True ### 2nd change : Change it to either DDIM,DDPM or uniform Sampler
         model_path="",
         results_path="",
         is_train=False,
