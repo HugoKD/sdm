@@ -548,7 +548,7 @@ class GaussianDiffusion:
         denoised_fn=None,
         cond_fn=None,
         model_kwargs=None,
-        eta=0.0,
+        eta=1.0, # PREVIOUSLY 0.0
     ):
         """
         Sample x_{t-1} from the model using DDIM.

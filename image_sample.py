@@ -72,9 +72,15 @@ def main():
         # set hyperparameter
         model_kwargs['s'] = args.s
 
-        sample_fn = (
-            diffusion.p_sample_loop if not args.use_ddim else diffusion.ddim_sample_loop
-        )
+        if args.use_ddim == '':
+            sample_fn = diffusion.p_sample_loop
+        elif args.use_ddim == 'DDIM':
+            sample_fn = diffusion.ddim_sample_loop
+        elif args.use_ddim == 'DDPM':
+            sample_fn = diffusion.ddpm_sample_loop
+        else:
+            raise ValueError("Invalid value for args.use_ddim")
+
         sample = sample_fn(
             model,
             (args.batch_size, 3, image.shape[2], image.shape[3]),
