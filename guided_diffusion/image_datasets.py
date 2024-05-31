@@ -50,6 +50,7 @@ def load_data(
     elif dataset_mode == 'ade20k':
         all_files = _list_image_files_recursively(os.path.join(data_dir, 'images', 'training' if is_train else 'validation'))
         classes = _list_image_files_recursively(os.path.join(data_dir, 'annotations', 'training' if is_train else 'validation'))
+        print('CLASSES - ', classes)
         instances = None
     elif dataset_mode == 'celeba':
         # The edge is computed by the instances.
