@@ -3,7 +3,34 @@ from abc import ABC, abstractmethod
 import numpy as np
 import torch as th
 import torch.distributed as dist
+from diffusers import DDIMScheduler, DDPMScheduler  # Import both schedulers
 
+class DDIMSchedulerWrapper:
+    def __init__(self, diffusion):
+        self.scheduler = DDIMScheduler(num_train_timesteps=2000)
+
+    def sample(self, batch_size, device):
+        # Access num_train_timesteps via the config attribute to avoid the deprecation warning
+        num_train_timesteps = self.scheduler.config.num_train_timesteps
+        t = th.randint(0, num_train_timesteps, (batch_size,), device=device)
+        weights = th.ones(batch_size, device=device)  # Example weights, customize as needed
+        return t, weights
+
+
+class DDPMSchedulerWrapper:
+    def __init__(self, diffusion):
+        self.scheduler = DDPMScheduler(
+            num_train_timesteps=2000,
+            beta_schedule="scaled_linear",  # Use scaled_linear beta schedule
+            variance_type="learned_range"   # Use learned_range variance type
+        )
+        print('DDPM sampler OK')
+
+    def sample(self, batch_size, device):
+        num_train_timesteps = self.scheduler.config.num_train_timesteps
+        t = th.randint(0, num_train_timesteps, (batch_size,), device=device)
+        weights = th.ones(batch_size, device=device)  # Example weights, customize as needed
+        return t, weights
 
 def create_named_schedule_sampler(name, diffusion):
     """
@@ -11,14 +38,18 @@ def create_named_schedule_sampler(name, diffusion):
 
     :param name: the name of the sampler.
     :param diffusion: the diffusion object to sample for.
+    :return: An instance of a ScheduleSampler.
     """
     if name == "uniform":
         return UniformSampler(diffusion)
     elif name == "loss-second-moment":
         return LossSecondMomentResampler(diffusion)
+    elif name == "ddim":
+        return DDIMSchedulerWrapper(diffusion)  # Use the wrapper instead
+    elif name == "ddpm":
+        return DDPMSchedulerWrapper(diffusion)  # Use the wrapper
     else:
         raise NotImplementedError(f"unknown schedule sampler: {name}")
-
 
 class ScheduleSampler(ABC):
     """

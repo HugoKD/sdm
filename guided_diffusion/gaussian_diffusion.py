@@ -31,6 +31,10 @@ def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
             num_diffusion_timesteps,
             lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
         )
+    elif schedule_name == "scaled_linear":
+        beta_start = 0.0001
+        beta_end = 0.02
+        return (th.linspace(beta_start**0.5, beta_end**0.5, num_diffusion_timesteps, dtype=th.float32) ** 2).numpy()
     else:
         raise NotImplementedError(f"unknown beta schedule: {schedule_name}")
 
@@ -548,7 +552,7 @@ class GaussianDiffusion:
         denoised_fn=None,
         cond_fn=None,
         model_kwargs=None,
-        eta=0.0,
+        eta=1.0, # PREVIOUSLY 0.0
     ):
         """
         Sample x_{t-1} from the model using DDIM.
